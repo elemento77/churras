@@ -407,10 +407,15 @@
         document.addEventListener('DOMContentLoaded', () => {
             // Estado da aplicação
             let totalAmount = 0;
+            let donors = []; // Array para armazenar histórico
+
             const donationInput = document.getElementById('donation-input');
             const donateBtn = document.getElementById('donate-btn');
             const totalDisplay = document.getElementById('total-amount');
             const donorsList = document.getElementById('donors-list');
+
+            // Chave para salvar no localStorage
+            const STORAGE_KEY = 'vaka_mystara_data';
 
             // Nomes temáticos para gerar aleatoriamente
             const fantasyTitles = [
@@ -436,6 +441,60 @@
                 return `${title} ${suffix}`;
             };
 
+            // Salvar dados no navegador
+            const saveData = () => {
+                const data = {
+                    total: totalAmount,
+                    // Salvar apenas os últimos 50 doadores para não estourar o storage com o tempo
+                    donors: donors.slice(0, 50)
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            };
+
+            // Carregar dados salvos
+            const loadData = () => {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    try {
+                        const data = JSON.parse(saved);
+                        totalAmount = parseFloat(data.total) || 0;
+                        donors = Array.isArray(data.donors) ? data.donors : [];
+
+                        // Atualizar display do total
+                        totalDisplay.innerHTML = formatCurrency(totalAmount);
+
+                        // Renderizar lista completa
+                        renderDonors();
+                    } catch (e) {
+                        console.error("Erro ao carregar dados:", e);
+                        // Reset em caso de erro de parse
+                        totalAmount = 0;
+                        donors = [];
+                    }
+                }
+            };
+
+            // Renderizar lista de doadores
+            const renderDonors = () => {
+                donorsList.innerHTML = ''; // Limpar lista atual
+
+                donors.forEach(donor => {
+                    const li = document.createElement('li');
+                    li.className = 'donor-item';
+
+                    // Remover animação inicial ao carregar (para não animar tudo de uma vez no load)
+                    li.style.animation = 'none';
+                    li.style.opacity = '1';
+                    li.style.transform = 'none';
+
+                    li.innerHTML = `
+                        <span class="donor-name">${donor.name}</span>
+                        <span class="donor-amount">+ R$ ${formatCurrency(donor.amount)}</span>
+                    `;
+                    donorsList.appendChild(li);
+                });
+            };
+
             // Função para adicionar doação
             const addDonation = () => {
                 const value = parseFloat(donationInput.value);
@@ -445,29 +504,41 @@
                     return;
                 }
 
-                // Atualizar total
+                const previousTotal = totalAmount;
                 totalAmount += value;
 
-                // Animar o contador
-                animateValue(totalDisplay, totalAmount - value, totalAmount, 1000);
+                // Criar objeto do doador
+                const newDonor = {
+                    name: generateRandomName(),
+                    amount: value,
+                    timestamp: new Date().getTime()
+                };
 
-                // Adicionar à lista
-                const name = generateRandomName();
+                // Adicionar ao início do array
+                donors.unshift(newDonor);
+
+                // Salvar estado atualizado
+                saveData();
+
+                // Animar o contador na interface
+                animateValue(totalDisplay, previousTotal, totalAmount, 1000);
+
+                // Adicionar o novo item na interface (com animação)
                 const li = document.createElement('li');
                 li.className = 'donor-item';
                 li.innerHTML = `
-                    <span class="donor-name">${name}</span>
+                    <span class="donor-name">${newDonor.name}</span>
                     <span class="donor-amount">+ R$ ${formatCurrency(value)}</span>
                 `;
 
-                // Inserir no topo da lista
+                // Inserir no topo da lista visual
                 donorsList.insertBefore(li, donorsList.firstChild);
 
                 // Limpar input
                 donationInput.value = '';
                 donationInput.focus();
 
-                // Feedback visual/sonoro (opcional, aqui apenas visual no botão)
+                // Feedback visual do botão
                 donateBtn.style.transform = "scale(0.95)";
                 setTimeout(() => donateBtn.style.transform = "", 100);
             };
@@ -502,6 +573,9 @@
                     addDonation();
                 }
             });
+
+            // Inicializar carregando dados
+            loadData();
         });
     </script>
 </body>
